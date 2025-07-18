@@ -1,7 +1,7 @@
-"""Unit tests for the :mod:`networkx.algorithms.approximation.distance_measures` module.
-"""
+"""Unit tests for the :mod:`networkx.algorithms.approximation.distance_measures` module."""
 
 import pytest
+
 import networkx as nx
 from networkx.algorithms.approximation import diameter
 

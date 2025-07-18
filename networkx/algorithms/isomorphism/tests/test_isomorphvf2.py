@@ -1,10 +1,12 @@
 """
-    Tests for VF2 isomorphism algorithm.
+Tests for VF2 isomorphism algorithm.
 """
 
-import os
-import struct
+import importlib.resources
 import random
+import struct
+
+import pytest
 
 import networkx as nx
 from networkx.algorithms import isomorphism as iso
@@ -59,7 +61,7 @@ class TestWikipediaExample:
 
         mapping = sorted(gm.mapping.items())
 
-    # this mapping is only one of the possibilies
+    # this mapping is only one of the possibilities
     # so this test needs to be reconsidered
     #        isomap = [('a', 1), ('b', 6), ('c', 3), ('d', 8),
     #                  ('g', 2), ('h', 5), ('i', 4), ('j', 7)]
@@ -118,18 +120,18 @@ class TestVF2GraphDB:
         return graph
 
     def test_graph(self):
-        head, tail = os.path.split(__file__)
-        g1 = self.create_graph(os.path.join(head, "iso_r01_s80.A99"))
-        g2 = self.create_graph(os.path.join(head, "iso_r01_s80.B99"))
+        head = importlib.resources.files("networkx.algorithms.isomorphism.tests")
+        g1 = self.create_graph(head / "iso_r01_s80.A99")
+        g2 = self.create_graph(head / "iso_r01_s80.B99")
         gm = iso.GraphMatcher(g1, g2)
         assert gm.is_isomorphic()
 
     def test_subgraph(self):
         # A is the subgraph
         # B is the full graph
-        head, tail = os.path.split(__file__)
-        subgraph = self.create_graph(os.path.join(head, "si2_b06_m200.A99"))
-        graph = self.create_graph(os.path.join(head, "si2_b06_m200.B99"))
+        head = importlib.resources.files("networkx.algorithms.isomorphism.tests")
+        subgraph = self.create_graph(head / "si2_b06_m200.A99")
+        graph = self.create_graph(head / "si2_b06_m200.B99")
         gm = iso.GraphMatcher(graph, subgraph)
         assert gm.subgraph_is_isomorphic()
         # Just testing some cases
@@ -143,7 +145,7 @@ class TestAtlas:
     @classmethod
     def setup_class(cls):
         global atlas
-        import networkx.generators.atlas as atlas
+        from networkx.generators import atlas
 
         cls.GAG = atlas.graph_atlas_g()
 
@@ -213,6 +215,34 @@ def test_multiedge():
             assert gm.is_isomorphic()
             # Testing if monomorphism works in multigraphs
             assert gm.subgraph_is_monomorphic()
+
+
+@pytest.mark.parametrize("G1", [nx.Graph(), nx.MultiGraph()])
+@pytest.mark.parametrize("G2", [nx.Graph(), nx.MultiGraph()])
+def test_matcher_raises(G1, G2):
+    undirected_matchers = [iso.GraphMatcher, iso.MultiGraphMatcher]
+    directed_matchers = [iso.DiGraphMatcher, iso.MultiDiGraphMatcher]
+
+    for matcher in undirected_matchers:
+        matcher(G1, G2)
+
+        msg = r"\(Multi-\)GraphMatcher\(\) not defined for directed graphs"
+        with pytest.raises(nx.NetworkXError, match=msg):
+            matcher(G1.to_directed(), G2.to_directed())
+
+    for matcher in directed_matchers:
+        matcher(G1.to_directed(), G2.to_directed())
+
+        msg = r"\(Multi-\)DiGraphMatcher\(\) not defined for undirected graphs"
+        with pytest.raises(nx.NetworkXError, match=msg):
+            matcher(G1, G2)
+
+    for matcher in undirected_matchers + directed_matchers:
+        msg = r"G1 and G2 must have the same directedness"
+        with pytest.raises(nx.NetworkXError, match=msg):
+            matcher(G1, G2.to_directed())
+        with pytest.raises(nx.NetworkXError, match=msg):
+            matcher(G1.to_directed(), G2)
 
 
 def test_selfloop():
@@ -401,3 +431,9 @@ def test_monomorphism_edge_match():
 
     gm = iso.DiGraphMatcher(G, SG, edge_match=iso.categorical_edge_match("label", None))
     assert gm.subgraph_is_monomorphic()
+
+
+def test_isomorphvf2pp_multidigraphs():
+    g = nx.MultiDiGraph({0: [1, 1, 2, 2, 3], 1: [2, 3, 3], 2: [3]})
+    h = nx.MultiDiGraph({0: [1, 1, 2, 2, 3], 1: [2, 3, 3], 3: [2]})
+    assert not (nx.vf2pp_is_isomorphic(g, h))

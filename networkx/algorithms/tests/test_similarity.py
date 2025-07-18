@@ -5,7 +5,6 @@ from networkx.algorithms.similarity import (
     graph_edit_distance,
     optimal_edit_paths,
     optimize_graph_edit_distance,
-    _n_choose_k,
 )
 from networkx.generators.classic import (
     circular_ladder_graph,
@@ -13,6 +12,16 @@ from networkx.generators.classic import (
     path_graph,
     wheel_graph,
 )
+
+
+@pytest.mark.parametrize("source", (10, "foo"))
+def test_generate_random_paths_source_not_in_G(source):
+    pytest.importorskip("numpy")
+    G = nx.complete_graph(5)
+    # No exception at generator construction time
+    path_gen = nx.generate_random_paths(G, sample_size=3, source=source)
+    with pytest.raises(nx.NodeNotFound, match="Initial node.*not in G"):
+        next(path_gen)
 
 
 def nmatch(n1, n2):
@@ -526,7 +535,7 @@ class TestSimilarity:
     # note: nx.simrank_similarity_numpy not included because returns np.array
     simrank_algs = [
         nx.simrank_similarity,
-        nx.similarity._simrank_similarity_python,
+        nx.algorithms.similarity._simrank_similarity_python,
     ]
 
     @pytest.mark.parametrize("simrank_similarity", simrank_algs)
@@ -700,6 +709,16 @@ class TestSimilarity:
         G = nx.cycle_graph(5)
         pytest.raises(nx.ExceededMaxIterations, alg, G, max_iterations=10)
 
+    def test_simrank_source_not_found(self):
+        G = nx.cycle_graph(5)
+        with pytest.raises(nx.NodeNotFound, match="Source node 10 not in G"):
+            nx.simrank_similarity(G, source=10)
+
+    def test_simrank_target_not_found(self):
+        G = nx.cycle_graph(5)
+        with pytest.raises(nx.NodeNotFound, match="Target node 10 not in G"):
+            nx.simrank_similarity(G, target=10)
+
     def test_simrank_between_versions(self):
         G = nx.cycle_graph(5)
         # _python tolerance 1e-4
@@ -794,18 +813,6 @@ class TestSimilarity:
         actual = nx.similarity._simrank_similarity_numpy(G, source=0, target=0)
         np.testing.assert_allclose(expected, actual, atol=1e-7)
 
-    def test_n_choose_k_small_k(self):
-        assert _n_choose_k(10, 4) == 210
-
-    def test_n_choose_k_big_k(self):
-        assert _n_choose_k(10, 8) == 45
-
-    def test_n_choose_k_same(self):
-        assert _n_choose_k(10, 10) == 1
-
-    def test_n_choose_k_k_bigger_than_n(self):
-        assert _n_choose_k(5, 10) == 0
-
     def test_panther_similarity_unweighted(self):
         np.random.seed(42)
 
@@ -823,18 +830,54 @@ class TestSimilarity:
         np.random.seed(42)
 
         G = nx.Graph()
-        G.add_edge("v1", "v2", weight=5)
-        G.add_edge("v1", "v3", weight=1)
-        G.add_edge("v1", "v4", weight=2)
-        G.add_edge("v2", "v3", weight=0.1)
-        G.add_edge("v3", "v5", weight=1)
+        G.add_edge("v1", "v2", w=5)
+        G.add_edge("v1", "v3", w=1)
+        G.add_edge("v1", "v4", w=2)
+        G.add_edge("v2", "v3", w=0.1)
+        G.add_edge("v3", "v5", w=1)
         expected = {"v3": 0.75, "v4": 0.5, "v2": 0.5, "v5": 0.25}
-        sim = nx.panther_similarity(G, "v1", path_length=2)
+        sim = nx.panther_similarity(G, "v1", path_length=2, weight="w")
         assert sim == expected
 
-    def test_generate_random_paths_unweighted(self):
-        np.random.seed(42)
+    def test_panther_similarity_source_not_found(self):
+        G = nx.Graph()
+        G.add_edges_from([(0, 1), (0, 2), (0, 3), (1, 2), (2, 4)])
+        with pytest.raises(nx.NodeNotFound, match="Source node 10 not in G"):
+            nx.panther_similarity(G, source=10)
 
+    def test_panther_similarity_isolated(self):
+        G = nx.Graph()
+        G.add_nodes_from(range(5))
+        with pytest.raises(
+            nx.NetworkXUnfeasible,
+            match="Panther similarity is not defined for the isolated source node 1.",
+        ):
+            nx.panther_similarity(G, source=1)
+
+    @pytest.mark.parametrize("num_paths", (1, 3, 10))
+    @pytest.mark.parametrize("source", (0, 1))
+    def test_generate_random_paths_with_start(self, num_paths, source):
+        G = nx.Graph([(0, 1), (0, 2), (0, 3), (1, 2), (2, 4)])
+        index_map = {}
+
+        path_gen = nx.generate_random_paths(
+            G,
+            num_paths,
+            path_length=2,
+            index_map=index_map,
+            source=source,
+        )
+        paths = list(path_gen)
+
+        # There should be num_paths paths
+        assert len(paths) == num_paths
+        # And they should all start with `source`
+        assert all(p[0] == source for p in paths)
+        # The index_map for the `source` node should contain the indices for
+        # all of the generated paths.
+        assert sorted(index_map[source]) == list(range(num_paths))
+
+    def test_generate_random_paths_unweighted(self):
         index_map = {}
         num_paths = 10
         path_length = 2
@@ -845,7 +888,7 @@ class TestSimilarity:
         G.add_edge(1, 2)
         G.add_edge(2, 4)
         paths = nx.generate_random_paths(
-            G, num_paths, path_length=path_length, index_map=index_map
+            G, num_paths, path_length=path_length, index_map=index_map, seed=42
         )
         expected_paths = [
             [3, 0, 3],
@@ -910,3 +953,32 @@ class TestSimilarity:
 
         assert expected_paths == list(paths)
         assert expected_map == index_map
+
+    def test_symmetry_with_custom_matching(self):
+        """G2 has edge (a,b) and G3 has edge (a,a) but node order for G2 is (a,b)
+        while for G3 it is (b,a)"""
+
+        a, b = "A", "B"
+        G2 = nx.Graph()
+        G2.add_nodes_from((a, b))
+        G2.add_edges_from([(a, b)])
+        G3 = nx.Graph()
+        G3.add_nodes_from((b, a))
+        G3.add_edges_from([(a, a)])
+        for G in (G2, G3):
+            for n in G:
+                G.nodes[n]["attr"] = n
+            for e in G.edges:
+                G.edges[e]["attr"] = e
+
+        def user_match(x, y):
+            return x == y
+
+        assert (
+            nx.graph_edit_distance(G2, G3, node_match=user_match, edge_match=user_match)
+            == 1
+        )
+        assert (
+            nx.graph_edit_distance(G3, G2, node_match=user_match, edge_match=user_match)
+            == 1
+        )

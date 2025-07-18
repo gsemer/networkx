@@ -7,6 +7,8 @@ Contributor Guide
    This document assumes some familiarity with contributing to open source
    scientific Python projects using GitHub pull requests. If this does not
    describe you, you may first want to see the :ref:`contributing_faq`.
+   If you are using a LLM or any other AI model, you will still need to
+   follow the process described here.
 
 .. _dev_workflow:
 
@@ -45,9 +47,9 @@ Development Workflow
          # Activate it
          source networkx-dev/bin/activate
          # Install main development and runtime dependencies of networkx
-         pip install -r requirements.txt -r requirements/developer.txt
+         pip install -r requirements/default.txt -r requirements/test.txt -r requirements/developer.txt
          #
-         # (Optional) Install pygraphviz, pydot, and gdal packages
+         # (Optional) Install pygraphviz and pydot packages
          # These packages require that you have your system properly configured
          # and what that involves differs on various systems.
          # pip install -r requirements/extra.txt
@@ -55,7 +57,7 @@ Development Workflow
          # Build and install networkx from source
          pip install -e .
          # Test your installation
-         PYTHONPATH=. pytest networkx
+         pytest --pyargs networkx
 
      * ``conda`` (Anaconda or Miniconda)
 
@@ -68,18 +70,18 @@ Development Workflow
          # Install main development and runtime dependencies of networkx
          conda install -c conda-forge --file requirements/default.txt --file requirements/test.txt --file requirements/developer.txt
          #
-         # (Optional) Install pygraphviz, pydot, and gdal packages
+         # (Optional) Install pygraphviz and pydot packages
          # These packages require that you have your system properly configured
          # and what that involves differs on various systems.
          # conda install -c conda-forge --file requirements/extra.txt
          #
          # Install networkx from source
-         pip install -e . --no-deps
+         pip install -e .
          # Test your installation
-         PYTHONPATH=. pytest networkx
+         pytest --pyargs networkx
 
-   * Finally, we recommend you use a pre-commit hook, which runs black when
-     you type ``git commit``::
+   * Finally, we recommend you install pre-commit which checks
+     that your code matches formatting guidelines::
 
        pre-commit install
 
@@ -94,7 +96,7 @@ Development Workflow
      branch name will appear in the merge message, use a sensible name
      such as 'bugfix-for-issue-1480'::
 
-      git checkout -b bugfix-for-issue-1480
+      git checkout -b bugfix-for-issue-1480 main
 
    * Commit locally as you progress (``git add`` and ``git commit``)
 
@@ -108,7 +110,21 @@ Development Workflow
      problems early and reduces the load on the continuous integration
      system.
 
-4. Submit your contribution:
+4. Ensure your contribution is properly formatted.
+
+   * If you installed ``pre-commit`` as recommended in step 1, all necessary
+     linting should run automatically at commit time. If there are any
+     formatting issues, the commit will not be successful and linting
+     suggestions will be applied to the patch automatically.
+     Simply ``git add`` and ``git commit`` a second time to accept the proposed
+     formatting changes.
+
+   * If the above fails for whatever reason, you can also run the linter over
+     the entire codebase with::
+
+         pre-commit run --all-files
+
+5. Submit your contribution:
 
    * Push your changes back to your fork on GitHub::
 
@@ -121,7 +137,7 @@ Development Workflow
      <http://groups.google.com/group/networkx-discuss>`_ to explain your changes or
      to ask for review.
 
-5. Review process:
+6. Review process:
 
    * Every Pull Request (PR) update triggers a set of `continuous integration
      <https://en.wikipedia.org/wiki/Continuous_integration>`_ services
@@ -151,10 +167,10 @@ Development Workflow
       issue number 1480, you could use the phrase "Fixes #1480" in the PR
       description or commit message.
 
-6. Document changes
+7. Document deprecations and API changes
 
-   If your change introduces any API modifications, please update
-   ``doc/release/release_dev.rst``.
+   If your change introduces any API modifications including deprecations,
+   please make sure the PR has the ``type: API`` label.
 
    To set up a function for deprecation:
 
@@ -163,7 +179,7 @@ Development Workflow
          msg = "curly_hair is deprecated and will be removed in v3.0. Use sum() instead."
          warnings.warn(msg, DeprecationWarning)
 
-   - Add a warning to ``networkx/conftest.py``::
+   - Add a warnings filter to ``networkx/conftest.py``::
 
          warnings.filterwarnings(
              "ignore", category=DeprecationWarning, message=<start of message>
@@ -175,14 +191,6 @@ Development Workflow
      .. code-block:: rst
 
         * In ``utils/misc.py`` remove ``generate_unique_node`` and related tests.
-
-   - Add a note (and a link to the PR) to ``doc/release/release_dev.rst``:
-
-     .. code-block:: rst
-
-        [`#4281 <https://github.com/networkx/networkx/pull/4281>`_]
-        Deprecate ``read_yaml`` and ``write_yaml``.
-
 
    .. note::
 
@@ -268,17 +276,16 @@ Guidelines
    import pandas as pd
    import networkx as nx
 
-  After importing `sp`` for ``scipy``::
+  After importing ``sp`` for ``scipy``::
 
    import scipy as sp
 
-  use the following imports::
+  access the relevant scipy subpackages from the top-level ``sp`` namespace, e.g.::
 
-   import scipy.linalg  # call as sp.linalg
-   import scipy.sparse  # call as sp.sparse
-   import scipy.sparse.linalg  # call as sp.sparse.linalg
-   import scipy.stats  # call as sp.stats
-   import scipy.optimize  # call as sp.optimize
+   sp.sparse.linalg
+
+  Instead of ``from scipy.sparse import linalg`` or
+  ``import scipy.sparse.linalg as spla``.
 
   For example, many libraries have a ``linalg`` subpackage: ``nx.linalg``,
   ``np.linalg``, ``sp.linalg``, ``sp.sparse.linalg``. The above import
@@ -291,17 +298,29 @@ Guidelines
 
   .. code-block:: python
 
-      @nx.not_implemented_for('directed', 'multigraph')
+      @nx.not_implemented_for("directed", "multigraph")
       def function_not_for_MultiDiGraph(G, others):
           # function not for graphs that are directed *and* multigraph
           pass
 
-      @nx.not_implemented_for('directed')
-      @nx.not_implemented_for('multigraph')
+
+      @nx.not_implemented_for("directed")
+      @nx.not_implemented_for("multigraph")
       def function_only_for_Graph(G, others):
           # function not for directed graphs *or* for multigraphs
           pass
+* Functions should avoid returning numpy scalars (e.g., `numpy.int64`, `numpy.float64`)
+  to ensure better compatibility and avoid issues with parts of the codebase that may
+  not recognize or handle numpy scalars properly. If a function returns a numpy scalar,
+  it should be converted to a native Python type.
 
+  .. code-block:: python
+
+      def convert_to_python_type():
+          # Perform some computation resulting in a numpy scalar
+          a = np.int64(42)
+          # Convert to a Python scalar before returning
+          return a.item()
 
 Testing
 -------
@@ -324,11 +343,11 @@ Or the tests for a specific submodule::
 
 Or tests from a specific file::
 
-    $ PYTHONPATH=. pytest networkx/readwrite/tests/test_yaml.py
+    $ PYTHONPATH=. pytest networkx/readwrite/tests/test_edgelist.py
 
 Or a single test within that file::
 
-    $ PYTHONPATH=. pytest networkx/readwrite/tests/test_yaml.py::TestYaml::testUndirected
+    $ PYTHONPATH=. pytest networkx/readwrite/tests/test_edgelist.py::test_parse_edgelist_with_data_list
 
 Use ``--doctest-modules`` to run doctests.
 For example, run all tests and all doctests using::
@@ -353,8 +372,17 @@ detailing the test coverage::
   networkx/algorithms/approximation/clique.py         42      1     18      1    97%
   ...
 
+There are additional pytest plugins that provide enhanced features for running
+the test suite. These can be installed with
+``pip install -r requirements/test-extras.txt``.
+For example, with these plugins installed it is possible to run the tests
+(including doctests) with multiple cores in randomized order with::
+
+   pytest -n auto --doctest-modules --pyargs networkx
+
+
 Adding tests
-------------
+~~~~~~~~~~~~
 
 If you're **new to testing**, see existing test files for examples of things to do.
 **Don't let the tests keep you from submitting your contribution!**
@@ -362,14 +390,65 @@ If you're not sure how to do this or are having trouble, submit your pull reques
 anyway.
 We will help you create the tests and sort out any kind of problem during code review.
 
+Image comparison
+~~~~~~~~~~~~~~~~
+
+.. note::
+   Image comparison tests require the ``pytest-mpl`` extension, which can be
+   installed with::
+
+      pip install pytest-mpl
+
+   If ``pytest-mpl`` is not installed, the test suite may emit warnings related
+   to ``pytest.mark.mpl_image_compare`` - these can be safely ignored.
+
+To run image comparisons::
+
+    $ PYTHONPATH=. pytest --mpl --pyargs networkx.drawing
+
+The ``--mpl`` tells ``pytest`` to use ``pytest-mpl`` to compare the generated plots
+with baseline ones stored in ``networkx/drawing/tests/baseline``.
+
+To add a new test, add a test function to ``networkx/drawing/tests`` that
+returns a Matplotlib figure (or any figure object that has a savefig method)
+and decorate it as follows::
+
+    @pytest.mark.mpl_image_compare
+    def test_barbell():
+        fig = plt.figure()
+        barbell = nx.barbell_graph(4, 6)
+        # make sure to fix any randomness
+        pos = nx.spring_layout(barbell, seed=42)
+        nx.draw(barbell, pos=pos)
+        return fig
+
+Then create a baseline image to compare against later::
+
+    $ pytest -k test_barbell --mpl-generate-path=networkx/drawing/tests/baseline
+
+.. note:: In order to keep the size of the repository from becoming too large, we
+   prefer to limit the size and number of baseline images we include.
+
+And test::
+
+    $ pytest -k test_barbell --mpl
+
+Documentation
+-------------
+
+.. include:: ../README.rst
+
 Adding examples
----------------
+~~~~~~~~~~~~~~~
 
 The gallery examples are managed by
 `sphinx-gallery <https://sphinx-gallery.readthedocs.io/>`_.
 The source files for the example gallery are ``.py`` scripts in ``examples/`` that
 generate one or more figures. They are executed automatically by sphinx-gallery when the
 documentation is built. The output is gathered and assembled into the gallery.
+
+Building the example gallery locally requires that the additional dependencies
+in ``requirements/example.txt`` be installed in your development environment.
 
 You can **add a new** plot by placing a new ``.py`` file in one of the directories inside the
 ``examples`` directory of the repository. See the other examples to get an idea for the
@@ -382,11 +461,73 @@ General guidelines for making a good gallery plot:
 * Examples should highlight a single feature/command.
 * Try to make the example as simple as possible.
 * Data needed by examples should be included in the same directory and the example script.
-* Add comments to explain things are aren't obvious from reading the code.
+* Add comments to explain things that aren't obvious from reading the code.
 * Describe the feature that you're showcasing and link to other relevant parts of the
   documentation.
+
+Adding References
+~~~~~~~~~~~~~~~~~
+
+If you are contributing a new algorithm (or an improvement to a current algorithm),
+a reference paper or resource should also be provided in the function docstring.
+For references to published papers, we try to follow the
+`Chicago Citation Style <https://en.wikipedia.org/wiki/The_Chicago_Manual_of_Style>`__.
+The quickest way of generating citation in this style is
+by searching for the paper on `Google Scholar <https://scholar.google.com/>`_ and clicking on
+the ``cite`` button. It will pop up the citation of the paper in multiple formats, and copy the
+``Chicago`` style.
+
+We prefer adding DOI links for URLs. If the DOI link resolves to a paywalled version of
+the article, we prefer adding a link to the arXiv version (if available) or any other
+publicly accessible copy of the paper.
+
+An example of a reference::
+
+    .. [1] Cheong, Se-Hang, and Yain-Whar Si. "Force-directed algorithms for schematic drawings and
+    placement: A survey." Information Visualization 19, no. 1 (2020): 65-91.
+    https://doi.org/10.1177%2F1473871618821740
+
+
+If the resource is uploaded as a PDF/DOCX/PPT on the web (lecture notes, presentations) it is better
+to use the `wayback machine <https://web.archive.org/>`_ to create a snapshot of the resource
+and link the internet archive link. The URL of the resource can change, and it creates unreachable
+links from the documentation.
+
+Using Math Formulae and Latex Formatting in Documentation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+When working with docstrings that contain math symbols or formulae
+use raw strings (``r"""``) to ensure proper rendering.
+While LaTeX formatting can improve the appearance of the rendered documentation,
+it's best to keep it simple and readable.
+
+An example of a math formula::
+
+      .. math::
+          Ax = \lambda x
+
+.. math::
+    Ax = \lambda x
+
+Some inline math::
+
+    These are Cheeger's Inequalities for \d-Regular graphs:
+    $\frac{d- \lambda_2}{2} \leq h(G) \leq \sqrt{2d(d- \lambda_2)}$
+
+These are Cheeger's Inequalities for \d-Regular graphs:
+$\frac{d- \lambda_2}{2} \leq h(G) \leq \sqrt{2d(d- \lambda_2)}$
 
 Bugs
 ----
 
 Please `report bugs on GitHub <https://github.com/networkx/networkx/issues>`_.
+
+Policies
+--------
+
+All interactions with the project are subject to the
+:doc:`NetworkX code of conduct <code_of_conduct>`.
+
+We also follow these policies:
+
+* :doc:`NetworkX deprecation policy <deprecations>`
+* :external+neps:doc:`Python version support <nep-0029-deprecation_policy>`

@@ -1,4 +1,5 @@
 import pytest
+
 import networkx as nx
 from networkx import NetworkXNotImplemented
 
@@ -56,11 +57,6 @@ class TestStronglyConnected:
 
     def test_tarjan(self):
         scc = nx.strongly_connected_components
-        for G, C in self.gc:
-            assert {frozenset(g) for g in scc(G)} == C
-
-    def test_tarjan_recursive(self):
-        scc = nx.strongly_connected_components_recursive
         for G, C in self.gc:
             assert {frozenset(g) for g in scc(G)} == C
 
@@ -167,7 +163,6 @@ class TestStronglyConnected:
         G = nx.DiGraph()
         assert list(nx.strongly_connected_components(G)) == []
         assert list(nx.kosaraju_strongly_connected_components(G)) == []
-        assert list(nx.strongly_connected_components_recursive(G)) == []
         assert len(nx.condensation(G)) == 0
         pytest.raises(
             nx.NetworkXPointlessConcept, nx.is_strongly_connected, nx.DiGraph()
@@ -175,23 +170,16 @@ class TestStronglyConnected:
 
     def test_connected_raise(self):
         G = nx.Graph()
-        pytest.raises(NetworkXNotImplemented, nx.strongly_connected_components, G)
-        pytest.raises(
-            NetworkXNotImplemented, nx.kosaraju_strongly_connected_components, G
-        )
-        pytest.raises(
-            NetworkXNotImplemented, nx.strongly_connected_components_recursive, G
-        )
+        with pytest.raises(NetworkXNotImplemented):
+            next(nx.strongly_connected_components(G))
+        with pytest.raises(NetworkXNotImplemented):
+            next(nx.kosaraju_strongly_connected_components(G))
         pytest.raises(NetworkXNotImplemented, nx.is_strongly_connected, G)
-        pytest.raises(
-            nx.NetworkXPointlessConcept, nx.is_strongly_connected, nx.DiGraph()
-        )
         pytest.raises(NetworkXNotImplemented, nx.condensation, G)
 
     strong_cc_methods = (
         nx.strongly_connected_components,
         nx.kosaraju_strongly_connected_components,
-        nx.strongly_connected_components_recursive,
     )
 
     @pytest.mark.parametrize("get_components", strong_cc_methods)

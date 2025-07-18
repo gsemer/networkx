@@ -1,10 +1,10 @@
-import pytest
-import networkx as nx
-from networkx.utils import nodes_equal, edges_equal
-from networkx.readwrite.graphml import GraphMLWriter
 import io
-import tempfile
-import os
+
+import pytest
+
+import networkx as nx
+from networkx.readwrite.graphml import GraphMLWriter
+from networkx.utils import edges_equal, nodes_equal
 
 
 class BaseGraphML:
@@ -520,13 +520,13 @@ class TestReadGraphML(BaseGraphML):
                 # edges with no data, no keys:
                 (1, 2),
                 # edges with only data:
-                (1, 2, dict(key="data_key1")),
-                (1, 2, dict(id="data_id2")),
-                (1, 2, dict(key="data_key3", id="data_id3")),
+                (1, 2, {"key": "data_key1"}),
+                (1, 2, {"id": "data_id2"}),
+                (1, 2, {"key": "data_key3", "id": "data_id3"}),
                 # edges with both data and keys:
-                (1, 2, 103, dict(key="data_key4")),
-                (1, 2, 104, dict(id="data_id5")),
-                (1, 2, 105, dict(key="data_key6", id="data_id7")),
+                (1, 2, 103, {"key": "data_key4"}),
+                (1, 2, 104, {"id": "data_id5"}),
+                (1, 2, 105, {"key": "data_key6", "id": "data_id7"}),
             ]
         )
         fh = io.BytesIO()
@@ -604,6 +604,29 @@ class TestReadGraphML(BaseGraphML):
         </y:ShapeNode>
       </data>
     </node>
+    <node id="n2">
+      <data key="d6" xml:space="preserve"><![CDATA[description
+line1
+line2]]></data>
+      <data key="d3">
+        <y:GenericNode configuration="com.yworks.flowchart.terminator">
+          <y:Geometry height="40.0" width="80.0" x="950.0" y="286.0"/>
+          <y:Fill color="#E8EEF7" color2="#B7C9E3" transparent="false"/>
+          <y:BorderStyle color="#000000" type="line" width="1.0"/>
+          <y:NodeLabel alignment="center" autoSizePolicy="content"
+          fontFamily="Dialog" fontSize="12" fontStyle="plain"
+          hasBackgroundColor="false" hasLineColor="false" height="17.96875"
+          horizontalTextPosition="center" iconTextGap="4" modelName="custom"
+          textColor="#000000" verticalTextPosition="bottom" visible="true"
+          width="67.984375" x="6.0078125" xml:space="preserve"
+          y="11.015625">3<y:LabelModel>
+          <y:SmartNodeLabelModel distance="4.0"/></y:LabelModel>
+          <y:ModelParameter><y:SmartNodeLabelModelParameter labelRatioX="0.0"
+          labelRatioY="0.0" nodeRatioX="0.0" nodeRatioY="0.0" offsetX="0.0"
+          offsetY="0.0" upX="0.0" upY="-1.0"/></y:ModelParameter></y:NodeLabel>
+        </y:GenericNode>
+      </data>
+    </node>
     <edge id="e0" source="n0" target="n1">
       <data key="d7">
         <y:PolyLineEdge>
@@ -626,24 +649,36 @@ class TestReadGraphML(BaseGraphML):
         assert G.has_edge("n0", "n1", key="e0")
         assert G.nodes["n0"]["label"] == "1"
         assert G.nodes["n1"]["label"] == "2"
+        assert G.nodes["n2"]["label"] == "3"
+        assert G.nodes["n0"]["shape_type"] == "rectangle"
+        assert G.nodes["n1"]["shape_type"] == "rectangle"
+        assert G.nodes["n2"]["shape_type"] == "com.yworks.flowchart.terminator"
+        assert G.nodes["n2"]["description"] == "description\nline1\nline2"
         fh.seek(0)
         G = nx.read_graphml(fh)
         assert list(G.edges()) == [("n0", "n1")]
         assert G["n0"]["n1"]["id"] == "e0"
         assert G.nodes["n0"]["label"] == "1"
         assert G.nodes["n1"]["label"] == "2"
+        assert G.nodes["n2"]["label"] == "3"
+        assert G.nodes["n0"]["shape_type"] == "rectangle"
+        assert G.nodes["n1"]["shape_type"] == "rectangle"
+        assert G.nodes["n2"]["shape_type"] == "com.yworks.flowchart.terminator"
+        assert G.nodes["n2"]["description"] == "description\nline1\nline2"
 
         H = nx.parse_graphml(data, force_multigraph=True)
         assert list(H.edges()) == [("n0", "n1")]
         assert H.has_edge("n0", "n1", key="e0")
         assert H.nodes["n0"]["label"] == "1"
         assert H.nodes["n1"]["label"] == "2"
+        assert H.nodes["n2"]["label"] == "3"
 
         H = nx.parse_graphml(data)
         assert list(H.edges()) == [("n0", "n1")]
         assert H["n0"]["n1"]["id"] == "e0"
         assert H.nodes["n0"]["label"] == "1"
         assert H.nodes["n1"]["label"] == "2"
+        assert H.nodes["n2"]["label"] == "3"
 
     def test_bool(self):
         s = """<?xml version="1.0" encoding="UTF-8"?>
@@ -1173,7 +1208,7 @@ class TestWriteGraphML(BaseGraphML):
         assert ("attr.type", "double") in keys[0]
         assert ("attr.type", "double") in keys[1]
 
-    def test_more_multigraph_keys(self):
+    def test_more_multigraph_keys(self, tmp_path):
         """Writing keys as edge id attributes means keys become strings.
         The original keys are stored as data, so read them back in
         if `str(key) == edge_id`
@@ -1181,14 +1216,12 @@ class TestWriteGraphML(BaseGraphML):
         """
         G = nx.MultiGraph()
         G.add_edges_from([("a", "b", 2), ("a", "b", 3)])
-        fd, fname = tempfile.mkstemp()
+        fname = tmp_path / "test.graphml"
         self.writer(G, fname)
         H = nx.read_graphml(fname)
         assert H.is_multigraph()
         assert edges_equal(G.edges(keys=True), H.edges(keys=True))
         assert G._adj == H._adj
-        os.close(fd)
-        os.unlink(fname)
 
     def test_default_attribute(self):
         G = nx.Graph(name="Fred")
@@ -1251,102 +1284,175 @@ class TestWriteGraphML(BaseGraphML):
         assert H.edges["n0", "n1", 0]["special"] == 2
         assert H.edges["n0", "n1", 1]["special"] == 3
 
-    def test_numpy_float(self):
-        np = pytest.importorskip("numpy")
-        wt = np.float_(3.4)
-        G = nx.Graph([(1, 2, {"weight": wt})])
-        fd, fname = tempfile.mkstemp()
-        self.writer(G, fname)
-        H = nx.read_graphml(fname, node_type=int)
-        assert G._adj == H._adj
-        os.close(fd)
-        os.unlink(fname)
-
-    def test_multigraph_to_graph(self):
+    def test_multigraph_to_graph(self, tmp_path):
         # test converting multigraph to graph if no parallel edges found
         G = nx.MultiGraph()
         G.add_edges_from([("a", "b", 2), ("b", "c", 3)])  # no multiedges
-        fd, fname = tempfile.mkstemp()
+        fname = tmp_path / "test.graphml"
         self.writer(G, fname)
         H = nx.read_graphml(fname)
         assert not H.is_multigraph()
         H = nx.read_graphml(fname, force_multigraph=True)
         assert H.is_multigraph()
-        os.close(fd)
-        os.unlink(fname)
 
         # add a multiedge
         G.add_edge("a", "b", "e-id")
-        fd, fname = tempfile.mkstemp()
+        fname = tmp_path / "test.graphml"
         self.writer(G, fname)
         H = nx.read_graphml(fname)
         assert H.is_multigraph()
         H = nx.read_graphml(fname, force_multigraph=True)
         assert H.is_multigraph()
-        os.close(fd)
-        os.unlink(fname)
 
-    def test_numpy_float64(self):
+    def test_write_generate_edge_id_from_attribute(self, tmp_path):
+        from xml.etree.ElementTree import parse
+
+        G = nx.Graph()
+        G.add_edges_from([("a", "b"), ("b", "c"), ("a", "c")])
+        edge_attributes = {e: str(e) for e in G.edges}
+        nx.set_edge_attributes(G, edge_attributes, "eid")
+        fname = tmp_path / "test.graphml"
+        # set edge_id_from_attribute e.g. "eid" for write_graphml()
+        self.writer(G, fname, edge_id_from_attribute="eid")
+        # set edge_id_from_attribute e.g. "eid" for generate_graphml()
+        generator = nx.generate_graphml(G, edge_id_from_attribute="eid")
+
+        H = nx.read_graphml(fname)
+        assert nodes_equal(G.nodes(), H.nodes())
+        assert edges_equal(G.edges(), H.edges())
+        # NetworkX adds explicit edge "id" from file as attribute
+        nx.set_edge_attributes(G, edge_attributes, "id")
+        assert edges_equal(G.edges(data=True), H.edges(data=True))
+
+        tree = parse(fname)
+        children = list(tree.getroot())
+        assert len(children) == 2
+        edge_ids = [
+            edge.attrib["id"]
+            for edge in tree.getroot().findall(
+                ".//{http://graphml.graphdrawing.org/xmlns}edge"
+            )
+        ]
+        # verify edge id value is equal to specified attribute value
+        assert sorted(edge_ids) == sorted(edge_attributes.values())
+
+        # check graphml generated from generate_graphml()
+        data = "".join(generator)
+        J = nx.parse_graphml(data)
+        assert sorted(G.nodes()) == sorted(J.nodes())
+        assert sorted(G.edges()) == sorted(J.edges())
+        # NetworkX adds explicit edge "id" from file as attribute
+        nx.set_edge_attributes(G, edge_attributes, "id")
+        assert edges_equal(G.edges(data=True), J.edges(data=True))
+
+    def test_multigraph_write_generate_edge_id_from_attribute(self, tmp_path):
+        from xml.etree.ElementTree import parse
+
+        G = nx.MultiGraph()
+        G.add_edges_from([("a", "b"), ("b", "c"), ("a", "c"), ("a", "b")])
+        edge_attributes = {e: str(e) for e in G.edges}
+        nx.set_edge_attributes(G, edge_attributes, "eid")
+        fname = tmp_path / "test.graphml"
+        # set edge_id_from_attribute e.g. "eid" for write_graphml()
+        self.writer(G, fname, edge_id_from_attribute="eid")
+        # set edge_id_from_attribute e.g. "eid" for generate_graphml()
+        generator = nx.generate_graphml(G, edge_id_from_attribute="eid")
+
+        H = nx.read_graphml(fname)
+        assert H.is_multigraph()
+        H = nx.read_graphml(fname, force_multigraph=True)
+        assert H.is_multigraph()
+
+        assert nodes_equal(G.nodes(), H.nodes())
+        assert edges_equal(G.edges(), H.edges())
+        assert sorted(data.get("eid") for u, v, data in H.edges(data=True)) == sorted(
+            edge_attributes.values()
+        )
+        # NetworkX uses edge_ids as keys in multigraphs if no key
+        assert sorted(key for u, v, key in H.edges(keys=True)) == sorted(
+            edge_attributes.values()
+        )
+
+        tree = parse(fname)
+        children = list(tree.getroot())
+        assert len(children) == 2
+        edge_ids = [
+            edge.attrib["id"]
+            for edge in tree.getroot().findall(
+                ".//{http://graphml.graphdrawing.org/xmlns}edge"
+            )
+        ]
+        # verify edge id value is equal to specified attribute value
+        assert sorted(edge_ids) == sorted(edge_attributes.values())
+
+        # check graphml generated from generate_graphml()
+        graphml_data = "".join(generator)
+        J = nx.parse_graphml(graphml_data)
+        assert J.is_multigraph()
+
+        assert nodes_equal(G.nodes(), J.nodes())
+        assert edges_equal(G.edges(), J.edges())
+        assert sorted(data.get("eid") for u, v, data in J.edges(data=True)) == sorted(
+            edge_attributes.values()
+        )
+        # NetworkX uses edge_ids as keys in multigraphs if no key
+        assert sorted(key for u, v, key in J.edges(keys=True)) == sorted(
+            edge_attributes.values()
+        )
+
+    def test_numpy_float64(self, tmp_path):
         np = pytest.importorskip("numpy")
         wt = np.float64(3.4)
         G = nx.Graph([(1, 2, {"weight": wt})])
-        fd, fname = tempfile.mkstemp()
+        fname = tmp_path / "test.graphml"
         self.writer(G, fname)
         H = nx.read_graphml(fname, node_type=int)
         assert G.edges == H.edges
         wtG = G[1][2]["weight"]
         wtH = H[1][2]["weight"]
         assert wtG == pytest.approx(wtH, abs=1e-6)
-        assert type(wtG) == np.float64
-        assert type(wtH) == float
-        os.close(fd)
-        os.unlink(fname)
+        assert type(wtG) is np.float64
+        assert type(wtH) is float
 
-    def test_numpy_float32(self):
+    def test_numpy_float32(self, tmp_path):
         np = pytest.importorskip("numpy")
         wt = np.float32(3.4)
         G = nx.Graph([(1, 2, {"weight": wt})])
-        fd, fname = tempfile.mkstemp()
+        fname = tmp_path / "test.graphml"
         self.writer(G, fname)
         H = nx.read_graphml(fname, node_type=int)
         assert G.edges == H.edges
         wtG = G[1][2]["weight"]
         wtH = H[1][2]["weight"]
         assert wtG == pytest.approx(wtH, abs=1e-6)
-        assert type(wtG) == np.float32
-        assert type(wtH) == float
-        os.close(fd)
-        os.unlink(fname)
+        assert type(wtG) is np.float32
+        assert type(wtH) is float
 
-    def test_numpy_float64_inference(self):
+    def test_numpy_float64_inference(self, tmp_path):
         np = pytest.importorskip("numpy")
         G = self.attribute_numeric_type_graph
         G.edges[("n1", "n1")]["weight"] = np.float64(1.1)
-        fd, fname = tempfile.mkstemp()
+        fname = tmp_path / "test.graphml"
         self.writer(G, fname, infer_numeric_types=True)
         H = nx.read_graphml(fname)
         assert G._adj == H._adj
-        os.close(fd)
-        os.unlink(fname)
 
-    def test_unicode_attributes(self):
+    def test_unicode_attributes(self, tmp_path):
         G = nx.Graph()
         name1 = chr(2344) + chr(123) + chr(6543)
         name2 = chr(5543) + chr(1543) + chr(324)
         node_type = str
         G.add_edge(name1, "Radiohead", foo=name2)
-        fd, fname = tempfile.mkstemp()
+        fname = tmp_path / "test.graphml"
         self.writer(G, fname)
         H = nx.read_graphml(fname, node_type=node_type)
         assert G._adj == H._adj
-        os.close(fd)
-        os.unlink(fname)
 
     def test_unicode_escape(self):
-        # test for handling json escaped stings in python 2 Issue #1880
+        # test for handling json escaped strings in python 2 Issue #1880
         import json
 
-        a = dict(a='{"a": "123"}')  # an object with many chars to escape
+        a = {"a": '{"a": "123"}'}  # an object with many chars to escape
         sa = json.dumps(a)
         G = nx.Graph()
         G.graph["test"] = sa
@@ -1363,3 +1469,63 @@ class TestXMLGraphML(TestWriteGraphML):
     @classmethod
     def setup_class(cls):
         TestWriteGraphML.setup_class()
+
+
+def test_exception_for_unsupported_datatype_node_attr():
+    """Test that a detailed exception is raised when an attribute is of a type
+    not supported by GraphML, e.g. a list"""
+    pytest.importorskip("lxml.etree")
+    # node attribute
+    G = nx.Graph()
+    G.add_node(0, my_list_attribute=[0, 1, 2])
+    fh = io.BytesIO()
+    with pytest.raises(TypeError, match="GraphML does not support"):
+        nx.write_graphml(G, fh)
+
+
+def test_exception_for_unsupported_datatype_edge_attr():
+    """Test that a detailed exception is raised when an attribute is of a type
+    not supported by GraphML, e.g. a list"""
+    pytest.importorskip("lxml.etree")
+    # edge attribute
+    G = nx.Graph()
+    G.add_edge(0, 1, my_list_attribute=[0, 1, 2])
+    fh = io.BytesIO()
+    with pytest.raises(TypeError, match="GraphML does not support"):
+        nx.write_graphml(G, fh)
+
+
+def test_exception_for_unsupported_datatype_graph_attr():
+    """Test that a detailed exception is raised when an attribute is of a type
+    not supported by GraphML, e.g. a list"""
+    pytest.importorskip("lxml.etree")
+    # graph attribute
+    G = nx.Graph()
+    G.graph["my_list_attribute"] = [0, 1, 2]
+    fh = io.BytesIO()
+    with pytest.raises(TypeError, match="GraphML does not support"):
+        nx.write_graphml(G, fh)
+
+
+def test_empty_attribute():
+    """Tests that a GraphML string with an empty attribute can be parsed
+    correctly."""
+    s = """<?xml version='1.0' encoding='utf-8'?>
+    <graphml>
+      <key id="d1" for="node" attr.name="foo" attr.type="string"/>
+      <key id="d2" for="node" attr.name="bar" attr.type="string"/>
+      <graph>
+        <node id="0">
+          <data key="d1">aaa</data>
+          <data key="d2">bbb</data>
+        </node>
+        <node id="1">
+          <data key="d1">ccc</data>
+          <data key="d2"></data>
+        </node>
+      </graph>
+    </graphml>"""
+    fh = io.BytesIO(s.encode("UTF-8"))
+    G = nx.read_graphml(fh)
+    assert G.nodes["0"] == {"foo": "aaa", "bar": "bbb"}
+    assert G.nodes["1"] == {"foo": "ccc", "bar": ""}

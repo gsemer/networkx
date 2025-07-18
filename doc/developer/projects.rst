@@ -8,38 +8,90 @@ suggest any other idea if you are interested on the
 
 These ideas can be used as projects for Google Summer of Code, Outreachy,
 NumFOCUS Small Development Grants and university course/project credits (if
-your university allows contribution to open source for credit).
+your university allows contribution to open source for credit). Mentee/contributors
+participating under NetworkX organisation would be expected to share their weekly
+work updates and get feedback in a 1-hr weekly meetings. If this isn't feasible for
+the contributor we can discuss further to figure something else out.
 
+If you are a professor interested in having your class develop tools
+and contribute the results to NetworkX, we welcome your submissions!
+We encourage you to consider rewriting/improving existing functions
+as a potential source of projects. Working off of and
+improving existing tools involves reading, evaluating and writing code,
+rather than just writing new code. We also encourage them to review each
+other's PRs. You can have students submit their PRs to your personal fork,
+discuss, review, etc in an environment conducive to mentoring and learning.
+Once their branch is ready to merge, it can be submitted to the main NetworkX
+repository. This will help keep in-class discussions separate from the
+broader NetworkX review process, making both more manageable and readable.
+Feel free to reach out to use as you plan these activities.
 
-Community Detection Algorithms
---------------------------------
+Creating a cookie-cutter backend repository in NetworkX
+-------------------------------------------------------
 
-- Abstract: Community detection involves a set of algorithms in network science which
-  deal with grouping nodes from a network according to their similar properties
-  such as belonging to dense clusters. NetworkX already contains a
-  :mod:`variety of community detection algorithms <networkx.algorithms.community>`
-  dealing with computing the community structure of a network. There are also
-  multiple PRs/issues which deal with adding the Louvain community detection
-  algorithm to NetworkX, e.g. `#1090`_, `#1092`_ `#951`_. Users who want to work with
-  NetworkX and Louvain Community Detection often use
-  https://github.com/taynaud/python-louvain. This project would focus on getting
-  Louvain community detection algorithms implemented into NetworkX.
+- Abstract: NetworkX has recently incorporated a backend `plugin <https://en.wikipedia.org/wiki/Plug-in_(computing)>`__
+  system based on `Python entry-points <https://packaging.python.org/en/latest/specifications/entry-points/>`__.
+  This project aims to develop a template backend repository to help developers
+  create their own NetworkX backends with ease. The template will clearly distinguish
+  between the mandatory, optional, and additional features/requirements that a NetworkX
+  backend package needs to have. We expect this template backend to be forked by the
+  developers, and then they would only have to add their backend implementation for the
+  algorithms they want to support at the designated places, and they would not have to
+  care about setting up all the other aspects of a backend unless they want to enable
+  or adopt any of the optional or additional functionalities of a backend. You can start by:
 
-- Recommended Skills: Python, graph algorithms
+  - looking at `nx-j4f <https://github.com/Schefflera-Arboricola/nx-j4f>`__
+    (a dummy backend) and `nx-parallel <https://github.com/networkx/nx-parallel>`__
+    (a simple backend) for inspiration.
 
-- Expected Outcome: We would like to see Louvain community detection
-  implemented inside NetworkX, or construct code and documented examples
-  in NetworkX that would interface with other Louvain projects.
+  - reading and understanding :ref:`backends` and :ref:`configs` documentation.
 
-- Complexity: Moderate
+  Feel free to ask questions or open an issue if you find something hard to understand,
+  as the above documentations are not that well-written.
 
-- Interested Mentors: `@dschult <https://github.com/dschult/>`__,
-  `@MridulS <https://github.com/MridulS/>`__,
+- Recommended Skills: Python, willingness to roll up your sleeves and dig deep
+  and understand the dispatching mechanism in NetworkX, and ability to take feedback
+  and iterate on your work.
 
-.. _#1090: https://github.com/networkx/networkx/pull/1090
-.. _#1092: https://github.com/networkx/networkx/pull/1092
-.. _#951: https://github.com/networkx/networkx/issues/951
+- Expected Outcome: A "ready-to-fork" and comprehensive backend template in the
+  NetworkX organization.
 
+- Expected time commitment: ~350 hours project
+
+- Complexity: Medium
+
+- Interested Mentors: `@Schefflera-Arboricola <https://github.com/Schefflera-Arboricola>`__,
+  `@dschult <https://github.com/dschult/>`__
+
+Adding embarrassingly parallel graph algorithms in nx-parallel
+--------------------------------------------------------------
+
+- Abstract: `nx-parallel <https://github.com/networkx/nx-parallel>`__ is a NetworkX
+  backend that uses `joblib <https://joblib.readthedocs.io/en/latest/index.html>`__ for
+  implementing parallel graph algorithms. Currently, only some of the NetworkX
+  `algorithms are implemented in nx-parallel <https://github.com/networkx/nx-parallel?tab=readme-ov-file#algorithms-in-nx-parallel>`__.
+  We expect the contributor to find `embarrassingly parallel <https://en.wikipedia.org/wiki/Embarrassingly_parallel>`__
+  graph algorithms from the :ref:`wide variety of graph algorithms <Algorithms>`
+  implemented in NetworkX and then write their parallel implementations in nx-parallel.
+  You can start by looking at:
+
+  - the implementations of existing algorithms in nx-parallel for inspiration.
+
+  - Joblib docs: `Embarrassingly parallel for loops <https://joblib.readthedocs.io/en/latest/parallel.html>`__
+
+  Find more details in `Issue#82 <https://github.com/networkx/nx-parallel/issues/82>`__.
+
+- Recommended Skills: Python, willingness to roll up your sleeves and dig deep
+  and understand nx-parallel's infrastructure, and ability to take feedback and
+  iterate on your work.
+
+- Expected Outcome: 3 parallel graph algorithms (~175 hours), or 7 (~350 hours),
+  implemented in nx-parallel.
+
+- Complexity: Medium
+
+- Interested Mentors: `@Schefflera-Arboricola <https://github.com/Schefflera-Arboricola>`__,
+  `@dschult <https://github.com/dschult/>`__
 
 Pedagogical Interactive Notebooks for Algorithms Implemented in NetworkX
 ------------------------------------------------------------------------
@@ -58,78 +110,135 @@ Pedagogical Interactive Notebooks for Algorithms Implemented in NetworkX
 - Expected Outcome: A collection of Interactive Jupyter notebooks which
   explain and explore network algorithms to readers and users of NetworkX.
   For example, see this notebook on
-  :doc:`Random Geometric Graphs <content/generators/geometric>`
+  :doc:`Geometric Generator Models <nx-guides:content/generators/geometric>`
 
 - Complexity: Depending on the algorithms you are interested to work on.
 
+- Interested Mentors: `@rossbar <https://github.com/rossbar/>`__,
+  `@Schefflera-Arboricola <https://github.com/Schefflera-Arboricola>`__
+
+- Expected time commitment: This project can be either a medium project (~175 hours)
+  or a large project (~350 hours). The contributor is expected to contribute 2-3
+  pedagogical interactive notebooks for the medium duration project and 4-5 notebooks
+  for the long duration project.
+
+Incorporate a Python library for ISMAGs isomorphism calculations
+----------------------------------------------------------------
+
+- Abstract: A team from Sandia Labs has converted the original java implementation of
+  the ISMAGS isomorphism routines to Python. They have invited us to incorporate that
+  code into NetworkX if we are interested. We'd like someone to learn the ISMAGS code
+  we currently provide, and the code from this new library and figure out what the
+  best combination is to include in NetworkX moving forward. That could be two separate
+  subpackages of tools, or more likely a combination of the two sets of code, or a
+  third incantation that combines good features from each.
+
+- Recommended Skills: Python, graph algorithms.
+
+- Expected Outcome: A plan for how to best incorporate ISMAGS into NetworkX along
+  with code to do that incorporation.
+
 - Interested Mentors: `@dschult <https://github.com/dschult/>`__,
-  `@MridulS <https://github.com/MridulS/>`__,
   `@rossbar <https://github.com/rossbar/>`__
 
-Directed Version of Traveling Salesman Problem
-----------------------------------------------
+- Expected time commitment: This project will be a full time 10 week project (~350 hrs).
 
-- Abstract: NetworkX has recently added a couple methods for solving
-  the Traveling Salesman Problem (see `#4607`_). The best approximation
-  for undirected graphs is the Christofides method. But the best algorithm
-  for directed graphs is by `Asapour`_ et.al. and has not yet been implemented.
-  The goal of this project is to learn the API used for implemented methods
-  and then implement the Asadpour method for directed graphs with similar API.
-  Other even more recent papers discussing algorithm improvements for directed
-  TSP (also called Asymmetric TSP or ATSP) include `Svensson`_ and `Traub`_.
-  The Traub paper may be most useful for implementing the algorithm as all three
-  are focused on proving asymptotic computation requirements rather than coding.
+Centrality Atlas
+----------------
 
-- Recommended Skills: Python, graph algorithms
+- Abstract: The goal of this project would be to produce a comprehensive review
+  of network centrality measures.
+  Centrality is a central concept in network science and has many applications
+  across domains. NetworkX provides many functions for measuring
+  various types of :doc:`network centrality</reference/algorithms/centrality>`.
+  The individual centrality functions are typically well-described by their
+  docstrings (though there's always room for improvement!); however, there
+  currently is no big-picture overview of centrality.
+  Furthermore, many of the centrality measures are closely related, but there is
+  no documentation that describes these relationships.
 
-- Expected Outcome: A new function in NetworkX which implements the Asapour algorithm.
+- Recommended Skills: Python, literature review, technical writing
 
-- Complexity: Moderate
-
-- Interested Mentors: `@dschult <https://github.com/dschult/>`__,
-  `@MridulS <https://github.com/MridulS/>`__, `@boothby <https://github.com/boothby/>`__,
-
-.. _#4607: https://github.com/networkx/networkx/pull/4607
-.. _Asapour: https://pubsonline.informs.org/doi/pdf/10.1287/opre.2017.1603
-.. _Svensson: https://doi.org/10.1109/FOCS.2015.10  (https://arxiv.org/abs/1502.02051)
-.. _Traub: https://doi.org/10.1145/3357713.3384233 (https://arxiv.org/abs/1912.00670)
-
-
-Implement the VF2++ Graph Isomorphism Algorithm
------------------------------------------------
-
-- Abstract: The `Graph Isomorphism Problem`_ is a famous difficult network problem at
-  the boundary between P and NP-Complete. The VF2 algorithm is included with NetworkX
-  in a recursive formulation. There is an improved version of this algorithm called
-  `VF2++`_ which we intend to implement. We have early attempts at a nonrecursive version
-  of the main algorithm that also address subgraph isomorphism and subgraph monomorphism.
-  This project involves fully implementing them and extending to directed and multigraph
-  settings.
-
-- Recommended Skills: Python, graph algorithms
-
-- Expected Outcome: A new set of functions in NetworkX that implement the VF2++
-  algorithm for all problem and graph types in a nonrecursive manner.
-
-- Complexity: Moderate
+- Expected Outcome: An executable document that provides an overview and applications
+  of network centrality measures. Potential outputs include (but are not limited
+  to): an article for ``nx-guides`` (see above) and/or an example gallery for centrality
+  measures.
 
 - Interested Mentors: `@dschult <https://github.com/dschult/>`__,
-  `@MridulS <https://github.com/MridulS/>`__, `@boothby <https://github.com/boothby/>`__,
+  `@rossbar <https://github.com/rossbar/>`__,
+  `@Schefflera-Arboricola <https://github.com/Schefflera-Arboricola>`__
 
-.. _`Graph Isomorphism Problem`: https://en.wikipedia.org/wiki/Graph_isomorphism_problem
-.. _VF2++: https://doi.org/10.1016/j.dam.2018.02.018
+- Expected time commitment: Variable, though a high-quality review article would
+  be expected to take several months of dedicated research (~350 hours).
 
+Completed Projects
+==================
 
-Project Idea Template
----------------------
+- `Revisiting and expanding nx-parallel`_
+    - Program: Google Summer of Code 2024
+    - Contributor: `@Schefflera-Arboricola <https://github.com/Schefflera-Arboricola>`__
+    - Link to Proposal: `GSoC 2024: Revisiting and expanding nx-parallel <https://github.com/networkx/archive/blob/main/proposals-gsoc/GSoC-2024-Revisiting-and-expanding-nx-parallel.pdf>`_
 
-- Abstract:
+- `Unifying the Visualization Interface for NetworkX`
+    - Program: Funded by a grant from CZI (Chan-Zuckerberg Initiative) 2024
+    - Contributor: `@mjschwenne <https://github.com/mjschwenne>`__
+    - Summary: Refactored existing draw functions to a single function with all drawing
+      attributes stored in the NetworkX Graph object.
 
-- Recommended Skills:
+- `VF2++ algorithm for graph isomorphism`_
+    - Program: Google Summer of Code 2022
+    - Contributor: `@kpetridis24 <https://github.com/kpetridis24/>`__
+    - Link to Proposal: `GSoC 2022: VF2++ Algorithm <https://github.com/networkx/archive/blob/main/proposals-gsoc/GSoC-2022-VF2plusplus-isomorphism.pdf>`_
 
-- Expected Outcome:
+- `Louvain community detection algorithm`_
+    - Program: Google Summer of Code 2021
+    - Contributor: `@z3y50n <https://github.com/z3y50n/>`__
+    - Link to Proposal:  `GSoC 2021: Community Detection Algorithms <https://github.com/networkx/archive/blob/main/proposals-gsoc/GSoC-2021-Community-Detection-Algorithms.pdf>`__
 
-- Complexity;
+- `Asadpour algorithm for directed travelling salesman problem`_
+    - Program: Google Summer of Code 2021
+    - Contributor: `@mjschwenne <https://github.com/mjschwenne/>`__
+    - Link to Proposal:  `GSoC 2021: Asadpour algorithm <https://github.com/networkx/archive/blob/main/proposals-gsoc/GSoC-2021-Asadpour-Asymmetric-Traveling%20Salesman-Problem.pdf>`__
 
-- Interested Mentors:
+- Pedagogical notebook: `Directed acyclic graphs and topological sort`_
+    - Program: Google Summer of Code 2021
+    - Contributor:  `@vdshk <https://github.com/vdshk>`__
+
+- Pedagogical notebooks: `Graph assortativity`_ & `Network flow analysis and Dinitz algorithm`_
+    - Program: Google Summer of Code 2021
+    - Contributor: `@harshal-dupare <https://github.com/harshal-dupare/>`__
+
+- Add On system for NetworkX: `NetworkX-Metis`_
+    - Program: Google Summer of Code 2015
+    - Contributor: `@OrkoHunter <https://github.com/OrkoHunter/>`__
+    - Link to Proposal:  `GSoC 2015: Add On System for NetworkX <https://github.com/networkx/archive/blob/main/proposals-gsoc/GSoC-2015-Add-on-system-for-NetworkX.md>`__
+
+- `NetworkX 2.0 API`_
+    - Program: Google Summer of Code 2015
+    - Contributor: `@MridulS <https://github.com/MridulS/>`__
+    - Link to Proposal: `GSoC 2015: NetworkX 2.0 API <https://github.com/networkx/archive/blob/main/proposals-gsoc/GSoC-2015-NetworkX-2.0-api.md>`__
+
+.. _`Revisiting and expanding nx-parallel`: https://github.com/Schefflera-Arboricola/blogs/tree/main/networkx/GSoC24
+.. _`VF2++ algorithm for graph isomorphism`: https://github.com/networkx/networkx/pull/5788
+.. _`Louvain community detection algorithm`: https://github.com/networkx/networkx/pull/4929
+.. _`Asadpour algorithm for directed travelling salesman problem`: https://github.com/networkx/networkx/pull/4740
+.. _`Directed acyclic graphs and topological sort`: https://github.com/networkx/nx-guides/pull/44
+.. _`Graph assortativity`: https://github.com/networkx/nx-guides/pull/42
+.. _`Network flow analysis and Dinitz algorithm`: https://github.com/networkx/nx-guides/pull/46
+.. _`NetworkX-Metis`: https://github.com/networkx/networkx-metis
+.. _`NetworkX 2.0 API`: https://networkx.org/documentation/latest/release/migration_guide_from_1.x_to_2.0.html
+
+..
+   Project Idea Template
+   ---------------------
+
+   - Abstract:
+
+   - Recommended Skills:
+
+   - Expected Outcome:
+
+   - Complexity;
+
+   - Interested Mentors:
 

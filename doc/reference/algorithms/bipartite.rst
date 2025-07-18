@@ -138,5 +138,14 @@ Extendability
 .. autosummary::
    :toctree: generated/
 
-   find_extendability
+   maximal_extendability
+
+
+Link Analysis
+-------------
+.. automodule:: networkx.algorithms.bipartite.link_analysis
+.. autosummary::
+   :toctree: generated/
+
+   birank
 

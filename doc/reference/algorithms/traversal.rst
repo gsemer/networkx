@@ -29,10 +29,13 @@ Breadth First Search
    :toctree: generated/
 
    bfs_edges
+   bfs_layers
    bfs_tree
    bfs_predecessors
    bfs_successors
    descendants_at_distance
+   bfs_labeled_edges
+   generic_bfs_edges
 
 Beam search
 -----------

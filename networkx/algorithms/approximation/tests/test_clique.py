@@ -1,11 +1,12 @@
 """Unit tests for the :mod:`networkx.algorithms.approximation.clique` module."""
 
-
 import networkx as nx
-from networkx.algorithms.approximation import max_clique
-from networkx.algorithms.approximation import clique_removal
-from networkx.algorithms.approximation import large_clique_size
-from networkx.algorithms.approximation import maximum_independent_set
+from networkx.algorithms.approximation import (
+    clique_removal,
+    large_clique_size,
+    max_clique,
+    maximum_independent_set,
+)
 
 
 def is_independent_set(G, nodes):

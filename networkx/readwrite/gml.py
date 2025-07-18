@@ -17,9 +17,9 @@ interact with different languages and even different Python versions.
 Re-importing from gml is also a concern.
 
 Without specifying a `stringizer`/`destringizer`, the code is capable of
-handling `int`/`float`/`str`/`dict`/`list` data as required by the GML
-specification.  For other data types, you need to explicitly supply a
-`stringizer`/`destringizer`.
+writing `int`/`float`/`str`/`dict`/`list` data as required by the GML
+specification.  For writing other data types, and for reading data other
+than `str` you need to explicitly supply a `stringizer`/`destringizer`.
 
 For additional documentation on the GML file format, please see the
 `GML website <https://web.archive.org/web/20190207140002/http://www.fim.uni-passau.de/index.php?id=17297&L=1>`_.
@@ -27,18 +27,18 @@ For additional documentation on the GML file format, please see the
 Several example graphs in GML format may be found on Mark Newman's
 `Network data page <http://www-personal.umich.edu/~mejn/netdata/>`_.
 """
-from io import StringIO
+
+import html.entities as htmlentitydefs
+import re
 from ast import literal_eval
 from collections import defaultdict
 from enum import Enum
+from io import StringIO
 from typing import Any, NamedTuple
+
 import networkx as nx
 from networkx.exception import NetworkXError
 from networkx.utils import open_file
-
-import warnings
-import re
-import html.entities as htmlentitydefs
 
 __all__ = ["read_gml", "parse_gml", "generate_gml", "write_gml"]
 
@@ -101,26 +101,26 @@ def literal_destringizer(rep):
     ValueError
         If `rep` is not a Python literal.
     """
-    msg = "literal_destringizer is deprecated and will be removed in 3.0."
-    warnings.warn(msg, DeprecationWarning)
     if isinstance(rep, str):
         orig_rep = rep
         try:
             return literal_eval(rep)
-        except SyntaxError as e:
-            raise ValueError(f"{orig_rep!r} is not a valid Python literal") from e
+        except SyntaxError as err:
+            raise ValueError(f"{orig_rep!r} is not a valid Python literal") from err
     else:
         raise ValueError(f"{rep!r} is not a string")
 
 
 @open_file(0, mode="rb")
+@nx._dispatchable(graphs=None, returns_graph=True)
 def read_gml(path, label="label", destringizer=None):
     """Read graph in GML format from `path`.
 
     Parameters
     ----------
-    path : filename or filehandle
-        The filename or filehandle to read from.
+    path : file or string
+        Filename or file handle to read.
+        Filenames ending in .gz or .bz2 will be decompressed.
 
     label : string, optional
         If not None, the parsed nodes will be renamed according to node
@@ -144,15 +144,16 @@ def read_gml(path, label="label", destringizer=None):
     See Also
     --------
     write_gml, parse_gml
+    literal_destringizer
 
     Notes
     -----
     GML files are stored using a 7-bit ASCII encoding with any extended
     ASCII characters (iso8859-1) appearing as HTML character entities.
     Without specifying a `stringizer`/`destringizer`, the code is capable of
-    handling `int`/`float`/`str`/`dict`/`list` data as required by the GML
-    specification.  For other data types, you need to explicitly supply a
-    `stringizer`/`destringizer`.
+    writing `int`/`float`/`str`/`dict`/`list` data as required by the GML
+    specification.  For writing other data types, and for reading data other
+    than `str` you need to explicitly supply a `stringizer`/`destringizer`.
 
     For additional documentation on the GML file format, please see the
     `GML url <https://web.archive.org/web/20190207140002/http://www.fim.uni-passau.de/index.php?id=17297&L=1>`_.
@@ -162,16 +163,29 @@ def read_gml(path, label="label", destringizer=None):
     Examples
     --------
     >>> G = nx.path_graph(4)
-    >>> nx.write_gml(G, "test.gml")
-    >>> H = nx.read_gml("test.gml")
+    >>> nx.write_gml(G, "test_path4.gml")
+
+    GML values are interpreted as strings by default:
+
+    >>> H = nx.read_gml("test_path4.gml")
+    >>> H.nodes
+    NodeView(('0', '1', '2', '3'))
+
+    When a `destringizer` is provided, GML values are converted to the provided type.
+    For example, integer nodes can be recovered as shown below:
+
+    >>> J = nx.read_gml("test_path4.gml", destringizer=int)
+    >>> J.nodes
+    NodeView((0, 1, 2, 3))
+
     """
 
     def filter_lines(lines):
         for line in lines:
             try:
                 line = line.decode("ascii")
-            except UnicodeDecodeError as e:
-                raise NetworkXError("input is not ASCII-encoded") from e
+            except UnicodeDecodeError as err:
+                raise NetworkXError("input is not ASCII-encoded") from err
             if not isinstance(line, str):
                 lines = str(lines)
             if line and line[-1] == "\n":
@@ -182,6 +196,7 @@ def read_gml(path, label="label", destringizer=None):
     return G
 
 
+@nx._dispatchable(graphs=None, returns_graph=True)
 def parse_gml(lines, label="label", destringizer=None):
     """Parse GML graph from a string or iterable.
 
@@ -221,9 +236,9 @@ def parse_gml(lines, label="label", destringizer=None):
     GML files are stored using a 7-bit ASCII encoding with any extended
     ASCII characters (iso8859-1) appearing as HTML character entities.
     Without specifying a `stringizer`/`destringizer`, the code is capable of
-    handling `int`/`float`/`str`/`dict`/`list` data as required by the GML
-    specification.  For other data types, you need to explicitly supply a
-    `stringizer`/`destringizer`.
+    writing `int`/`float`/`str`/`dict`/`list` data as required by the GML
+    specification.  For writing other data types, and for reading data other
+    than `str` you need to explicitly supply a `stringizer`/`destringizer`.
 
     For additional documentation on the GML file format, please see the
     `GML url <https://web.archive.org/web/20190207140002/http://www.fim.uni-passau.de/index.php?id=17297&L=1>`_.
@@ -235,8 +250,8 @@ def parse_gml(lines, label="label", destringizer=None):
         if isinstance(line, bytes):
             try:
                 line.decode("ascii")
-            except UnicodeDecodeError as e:
-                raise NetworkXError("input is not ASCII-encoded") from e
+            except UnicodeDecodeError as err:
+                raise NetworkXError("input is not ASCII-encoded") from err
         if not isinstance(line, str):
             line = str(line)
         return line
@@ -297,9 +312,34 @@ def parse_gml_lines(lines, label, destringizer):
         ]
         tokens = re.compile("|".join(f"({pattern})" for pattern in patterns))
         lineno = 0
+        multilines = []  # entries spread across multiple lines
         for line in lines:
-            length = len(line)
             pos = 0
+
+            # deal with entries spread across multiple lines
+            #
+            # should we actually have to deal with escaped "s then do it here
+            if multilines:
+                multilines.append(line.strip())
+                if line[-1] == '"':  # closing multiline entry
+                    # multiline entries will be joined by space. cannot
+                    # reintroduce newlines as this will break the tokenizer
+                    line = " ".join(multilines)
+                    multilines = []
+                else:  # continued multiline entry
+                    lineno += 1
+                    continue
+            else:
+                if line.count('"') == 1:  # opening multiline entry
+                    if line.strip()[0] != '"' and line.strip()[-1] != '"':
+                        # since we expect something like key "value", the " should not be found at ends
+                        # otherwise tokenizer will pick up the formatting mistake.
+                        multilines = [line.rstrip()]
+                        lineno += 1
+                        continue
+
+            length = len(line)
+
             while pos < length:
                 match = tokens.match(line, pos)
                 if match is None:
@@ -349,6 +389,11 @@ def parse_gml_lines(lines, label, destringizer):
                         value = destringizer(value)
                     except ValueError:
                         pass
+                # Special handling for empty lists and tuples
+                if value == "()":
+                    value = ()
+                if value == "[]":
+                    value = []
                 curr_token = next(tokens)
             elif category == Pattern.DICT_START:
                 curr_token, value = parse_dict(curr_token)
@@ -367,7 +412,7 @@ def parse_gml_lines(lines, label, destringizer):
                     except Exception:
                         msg = (
                             "an int, float, string, '[' or string"
-                            + " convertable ASCII value for node id or label"
+                            + " convertible ASCII value for node id or label"
                         )
                         unexpected(curr_token, msg)
                 # Special handling for nan and infinity.  Since the gml language
@@ -430,8 +475,8 @@ def parse_gml_lines(lines, label, destringizer):
     def pop_attr(dct, category, attr, i):
         try:
             return dct.pop(attr)
-        except KeyError as e:
-            raise NetworkXError(f"{category} #{i} has no {attr!r} attribute") from e
+        except KeyError as err:
+            raise NetworkXError(f"{category} #{i} has no {attr!r} attribute") from err
 
     nodes = graph.get("node", [])
     mapping = {}
@@ -498,19 +543,12 @@ def literal_stringizer(value):
 
     Notes
     -----
-    `literal_stringizer` is largely the same as `repr` in terms of
-    functionality but attempts prefix `unicode` and `bytes` literals with
-    `u` and `b` to provide better interoperability of data generated by
-    Python 2 and Python 3.
-
     The original value can be recovered using the
     :func:`networkx.readwrite.gml.literal_destringizer` function.
     """
-    msg = "literal_stringizer is deprecated and will be removed in 3.0."
-    warnings.warn(msg, DeprecationWarning)
 
     def stringize(value):
-        if isinstance(value, (int, bool)) or value is None:
+        if isinstance(value, int | bool) or value is None:
             if value is True:  # GML uses 1/0 for boolean values.
                 buf.write(str(1))
             elif value is False:
@@ -525,7 +563,7 @@ def literal_stringizer(value):
                 except UnicodeEncodeError:
                     text = "u" + text
             buf.write(text)
-        elif isinstance(value, (float, complex, str, bytes)):
+        elif isinstance(value, float | complex | str | bytes):
             buf.write(repr(value))
         elif isinstance(value, list):
             buf.write("[")
@@ -577,7 +615,7 @@ def literal_stringizer(value):
                 stringize(item)
             buf.write("}")
         else:
-            msg = "{value!r} cannot be converted into a Python literal"
+            msg = f"{value!r} cannot be converted into a Python literal"
             raise ValueError(msg)
 
     buf = StringIO()
@@ -609,6 +647,10 @@ def generate_gml(G, stringizer=None):
         If `stringizer` cannot convert a value into a string, or the value to
         convert is not a string while `stringizer` is None.
 
+    See Also
+    --------
+    literal_stringizer
+
     Notes
     -----
     Graph attributes named 'directed', 'multigraph', 'node' or
@@ -620,9 +662,9 @@ def generate_gml(G, stringizer=None):
     GML files are stored using a 7-bit ASCII encoding with any extended
     ASCII characters (iso8859-1) appearing as HTML character entities.
     Without specifying a `stringizer`/`destringizer`, the code is capable of
-    handling `int`/`float`/`str`/`dict`/`list` data as required by the GML
-    specification.  For other data types, you need to explicitly supply a
-    `stringizer`/`destringizer`.
+    writing `int`/`float`/`str`/`dict`/`list` data as required by the GML
+    specification.  For writing other data types, and for reading data other
+    than `str` you need to explicitly supply a `stringizer`/`destringizer`.
 
     For additional documentation on the GML file format, please see the
     `GML url <https://web.archive.org/web/20190207140002/http://www.fim.uni-passau.de/index.php?id=17297&L=1>`_.
@@ -640,7 +682,7 @@ def generate_gml(G, stringizer=None):
         label "1"
       ]
     ]
-    >>> G = nx.OrderedMultiGraph([("a", "b"), ("a", "b")])
+    >>> G = nx.MultiGraph([("a", "b"), ("a", "b")])
     >>> print("\n".join(nx.generate_gml(G)))
     graph [
       multigraph 1
@@ -674,7 +716,7 @@ def generate_gml(G, stringizer=None):
         if not isinstance(key, str):
             key = str(key)
         if key not in ignored_keys:
-            if isinstance(value, (int, bool)):
+            if isinstance(value, int | bool):
                 if key == "label":
                     yield indent + key + ' "' + str(value) + '"'
                 elif value is True:
@@ -683,7 +725,7 @@ def generate_gml(G, stringizer=None):
                 elif value is False:
                     yield indent + key + " 0"
                 # GML only supports signed 32-bit integers
-                elif value < -(2 ** 31) or value >= 2 ** 31:
+                elif value < -(2**31) or value >= 2**31:
                     yield indent + key + ' "' + str(value) + '"'
                 else:
                     yield indent + key + " " + str(value)
@@ -710,12 +752,11 @@ def generate_gml(G, stringizer=None):
                 for key, value in value.items():
                     yield from stringize(key, value, (), next_indent)
                 yield indent + "]"
-            elif (
-                isinstance(value, (list, tuple))
-                and key != "label"
-                and value
-                and not in_list
-            ):
+            elif isinstance(value, tuple) and key == "label":
+                yield indent + key + f' "({",".join(repr(v) for v in value)})"'
+            elif isinstance(value, list | tuple) and key != "label" and not in_list:
+                if len(value) == 0:
+                    yield indent + key + " " + f'"{value!r}"'
                 if len(value) == 1:
                     yield indent + key + " " + f'"{LIST_START_VALUE}"'
                 for val in value:
@@ -724,10 +765,10 @@ def generate_gml(G, stringizer=None):
                 if stringizer:
                     try:
                         value = stringizer(value)
-                    except ValueError as e:
+                    except ValueError as err:
                         raise NetworkXError(
                             f"{value!r} cannot be converted into a string"
-                        ) from e
+                        ) from err
                 if not isinstance(value, str):
                     raise NetworkXError(f"{value!r} is not a string")
                 yield indent + key + ' "' + escape(value) + '"'
@@ -782,9 +823,9 @@ def write_gml(G, path, stringizer=None):
     G : NetworkX graph
         The graph to be converted to GML.
 
-    path : filename or filehandle
-        The filename or filehandle to write. Files whose names end with .gz or
-        .bz2 will be compressed.
+    path : string or file
+        Filename or file handle to write to.
+        Filenames ending in .gz or .bz2 will be compressed.
 
     stringizer : callable, optional
         A `stringizer` which converts non-int/non-float/non-dict values into
@@ -800,6 +841,7 @@ def write_gml(G, path, stringizer=None):
     See Also
     --------
     read_gml, generate_gml
+    literal_stringizer
 
     Notes
     -----
@@ -812,9 +854,9 @@ def write_gml(G, path, stringizer=None):
     GML files are stored using a 7-bit ASCII encoding with any extended
     ASCII characters (iso8859-1) appearing as HTML character entities.
     Without specifying a `stringizer`/`destringizer`, the code is capable of
-    handling `int`/`float`/`str`/`dict`/`list` data as required by the GML
-    specification.  For other data types, you need to explicitly supply a
-    `stringizer`/`destringizer`.
+    writing `int`/`float`/`str`/`dict`/`list` data as required by the GML
+    specification.  For writing other data types, and for reading data other
+    than `str` you need to explicitly supply a `stringizer`/`destringizer`.
 
     Note that while we allow non-standard GML to be read from a file, we make
     sure to write GML format. In particular, underscores are not allowed in
@@ -826,12 +868,12 @@ def write_gml(G, path, stringizer=None):
 
     Examples
     --------
-    >>> G = nx.path_graph(4)
-    >>> nx.write_gml(G, "test.gml")
+    >>> G = nx.path_graph(5)
+    >>> nx.write_gml(G, "test_path5.gml")
 
     Filenames ending in .gz or .bz2 will be compressed.
 
-    >>> nx.write_gml(G, "test.gml.gz")
+    >>> nx.write_gml(G, "test_path5.gml.gz")
     """
     for line in generate_gml(G, stringizer):
         path.write((line + "\n").encode("ascii"))

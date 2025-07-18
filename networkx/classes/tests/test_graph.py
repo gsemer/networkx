@@ -1,10 +1,19 @@
-import pickle
 import gc
+import pickle
 import platform
+import weakref
+
 import pytest
 
 import networkx as nx
-from networkx.utils import nodes_equal, edges_equal, graphs_equal
+from networkx.utils import edges_equal, graphs_equal, nodes_equal
+
+
+def test_degree_node_not_found_exception_message():
+    """See gh-7740"""
+    G = nx.path_graph(5)
+    with pytest.raises(nx.NetworkXError, match="Node.*is not in the graph"):
+        G.degree(100)
 
 
 class BaseGraphTester:
@@ -26,8 +35,24 @@ class BaseGraphTester:
 
     def test_nodes(self):
         G = self.K3
+        assert isinstance(G._node, G.node_dict_factory)
+        assert isinstance(G._adj, G.adjlist_outer_dict_factory)
+        assert all(
+            isinstance(adj, G.adjlist_inner_dict_factory) for adj in G._adj.values()
+        )
         assert sorted(G.nodes()) == self.k3nodes
         assert sorted(G.nodes(data=True)) == [(0, {}), (1, {}), (2, {})]
+
+    def test_none_node(self):
+        G = self.Graph()
+        with pytest.raises(ValueError):
+            G.add_node(None)
+        with pytest.raises(ValueError):
+            G.add_nodes_from([None])
+        with pytest.raises(ValueError):
+            G.add_edge(0, None)
+        with pytest.raises(ValueError):
+            G.add_edges_from([(0, None)])
 
     def test_has_node(self):
         G = self.K3
@@ -54,7 +79,19 @@ class BaseGraphTester:
         G = self.Graph()
 
         def count_objects_of_type(_type):
-            return sum(1 for obj in gc.get_objects() if isinstance(obj, _type))
+            # Iterating over all objects tracked by gc can include weak references
+            # whose weakly-referenced objects may no longer exist. Calling `isinstance`
+            # on such a weak reference will raise ReferenceError. There are at least
+            # three workarounds for this: one is to compare type names instead of using
+            # `isinstance` such as `type(obj).__name__ == typename`, another is to use
+            # `type(obj) == _type`, and the last is to ignore ProxyTypes as we do below.
+            # NOTE: even if this safeguard is deemed unnecessary to pass NetworkX tests,
+            # we should still keep it for maximum safety for other NetworkX backends.
+            return sum(
+                1
+                for obj in gc.get_objects()
+                if not isinstance(obj, weakref.ProxyTypes) and isinstance(obj, _type)
+            )
 
         gc.collect()
         before = count_objects_of_type(self.Graph)
@@ -77,6 +114,7 @@ class BaseGraphTester:
 
     def test_edges(self):
         G = self.K3
+        assert isinstance(G._adj, G.adjlist_outer_dict_factory)
         assert edges_equal(G.edges(), [(0, 1), (0, 2), (1, 2)])
         assert edges_equal(G.edges(0), [(0, 1), (0, 2)])
         assert edges_equal(G.edges([0, 1]), [(0, 1), (0, 2), (1, 2)])
@@ -108,7 +146,7 @@ class BaseGraphTester:
         # node not in graph doesn't get caught upon creation of iterator
         bunch = G.nbunch_iter(-1)
         # but gets caught when iterator used
-        with pytest.raises(nx.NetworkXError, match="is not a node or a sequence"):
+        with pytest.raises(nx.NetworkXError, match="is not in the graph"):
             list(bunch)
         # unhashable doesn't get caught upon creation of iterator
         bunch = G.nbunch_iter([0, 1, 2, {}])
@@ -152,6 +190,25 @@ class BaseGraphTester:
         G.add_edge(0, 0)
         G.add_edge(1, 1)
         G.remove_nodes_from([0, 1])
+
+    def test_cache_reset(self):
+        G = self.K3.copy()
+        old_adj = G.adj
+        assert id(G.adj) == id(old_adj)
+        G._adj = {}
+        assert id(G.adj) != id(old_adj)
+
+        old_nodes = G.nodes
+        assert id(G.nodes) == id(old_nodes)
+        G._node = {}
+        assert id(G.nodes) != id(old_nodes)
+
+    def test_attributes_cached(self):
+        G = self.K3.copy()
+        assert id(G.nodes) == id(G.nodes)
+        assert id(G.edges) == id(G.edges)
+        assert id(G.degree) == id(G.degree)
+        assert id(G.adj) == id(G.adj)
 
 
 class BaseAttrGraphTester(BaseGraphTester):
@@ -340,6 +397,7 @@ class BaseAttrGraphTester(BaseGraphTester):
     def test_graph_attr(self):
         G = self.K3.copy()
         G.graph["foo"] = "bar"
+        assert isinstance(G.graph, G.graph_attr_dict_factory)
         assert G.graph["foo"] == "bar"
         del G.graph["foo"]
         assert G.graph == {}
@@ -349,6 +407,9 @@ class BaseAttrGraphTester(BaseGraphTester):
     def test_node_attr(self):
         G = self.K3.copy()
         G.add_node(1, foo="bar")
+        assert all(
+            isinstance(d, G.node_attr_dict_factory) for u, d in G.nodes(data=True)
+        )
         assert nodes_equal(G.nodes(), [0, 1, 2])
         assert nodes_equal(G.nodes(data=True), [(0, {}), (1, {"foo": "bar"}), (2, {})])
         G.nodes[1]["foo"] = "baz"
@@ -375,6 +436,9 @@ class BaseAttrGraphTester(BaseGraphTester):
     def test_edge_attr(self):
         G = self.Graph()
         G.add_edge(1, 2, foo="bar")
+        assert all(
+            isinstance(d, G.edge_attr_dict_factory) for u, v, d in G.edges(data=True)
+        )
         assert edges_equal(G.edges(data=True), [(1, 2, {"foo": "bar"})])
         assert edges_equal(G.edges(data="foo"), [(1, 2, "bar")])
 
@@ -441,6 +505,53 @@ class BaseAttrGraphTester(BaseGraphTester):
         self.different_attrdict(H, G)
         H = G.to_undirected()
         self.is_deepcopy(H, G)
+
+    def test_to_directed_as_view(self):
+        H = nx.path_graph(2, create_using=self.Graph)
+        H2 = H.to_directed(as_view=True)
+        assert H is H2._graph
+        assert H2.has_edge(0, 1)
+        assert H2.has_edge(1, 0) or H.is_directed()
+        pytest.raises(nx.NetworkXError, H2.add_node, -1)
+        pytest.raises(nx.NetworkXError, H2.add_edge, 1, 2)
+        H.add_edge(1, 2)
+        assert H2.has_edge(1, 2)
+        assert H2.has_edge(2, 1) or H.is_directed()
+
+    def test_to_undirected_as_view(self):
+        H = nx.path_graph(2, create_using=self.Graph)
+        H2 = H.to_undirected(as_view=True)
+        assert H is H2._graph
+        assert H2.has_edge(0, 1)
+        assert H2.has_edge(1, 0)
+        pytest.raises(nx.NetworkXError, H2.add_node, -1)
+        pytest.raises(nx.NetworkXError, H2.add_edge, 1, 2)
+        H.add_edge(1, 2)
+        assert H2.has_edge(1, 2)
+        assert H2.has_edge(2, 1)
+
+    def test_directed_class(self):
+        G = self.Graph()
+
+        class newGraph(G.to_undirected_class()):
+            def to_directed_class(self):
+                return newDiGraph
+
+            def to_undirected_class(self):
+                return newGraph
+
+        class newDiGraph(G.to_directed_class()):
+            def to_directed_class(self):
+                return newDiGraph
+
+            def to_undirected_class(self):
+                return newGraph
+
+        G = newDiGraph() if G.is_directed() else newGraph()
+        H = G.to_directed()
+        assert isinstance(H, newDiGraph)
+        H = G.to_undirected()
+        assert isinstance(H, newGraph)
 
     def test_to_directed(self):
         G = self.K3
@@ -516,6 +627,7 @@ class TestGraph(BaseAttrGraphTester):
 
     def test_getitem(self):
         G = self.K3
+        assert G.adj[0] == {1: {}, 2: {}}
         assert G[0] == {1: {}, 2: {}}
         with pytest.raises(KeyError):
             G.__getitem__("j")
@@ -591,6 +703,9 @@ class TestGraph(BaseAttrGraphTester):
         G = self.Graph()
         G.add_edge(*(0, 1))
         assert G.adj == {0: {1: {}}, 1: {0: {}}}
+        G = self.Graph()
+        with pytest.raises(ValueError):
+            G.add_edge(None, "anything")
 
     def test_add_edges_from(self):
         G = self.Graph()
@@ -614,6 +729,8 @@ class TestGraph(BaseAttrGraphTester):
             G.add_edges_from([(0, 1, 2, 3)])  # too many in tuple
         with pytest.raises(TypeError):
             G.add_edges_from([0])  # not a tuple
+        with pytest.raises(ValueError):
+            G.add_edges_from([(None, 3), (3, 2)])  # None cannot be a node
 
     def test_remove_edge(self):
         G = self.K3.copy()
@@ -664,7 +781,7 @@ class TestGraph(BaseAttrGraphTester):
         assert G.get_edge_data(-1, 0, default=1) == 1
 
     def test_update(self):
-        # specify both edgees and nodes
+        # specify both edges and nodes
         G = self.K3.copy()
         G.update(nodes=[3, (4, {"size": 2})], edges=[(4, 5), (6, 7, {"weight": 2})])
         nlist = [
